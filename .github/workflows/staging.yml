@@ -67,7 +67,7 @@ jobs:
     with:
       aks_cluster_name: week10-aks-cluster
       aks_resource_group: week10-rg-staging
-      aks_acr_name: danuthacr
+      aks_acr_name: sit722devopsacraprylle
       aks_storage_name: week10storagestaging
       aks_namespace: 'staging'
     secrets:
