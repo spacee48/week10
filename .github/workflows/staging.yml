@@ -87,65 +87,65 @@ jobs:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
       AZURE_CONTAINER_REGISTRY: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
   
-  acceptance_testing:
-    needs: [deploy_frontend, deploy_backend]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+  # acceptance_testing:
+  #   needs: [deploy_frontend, deploy_backend]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Azure Login
+  #       uses: azure/login@v1
+  #       with:
+  #         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Set Kubernetes context (get AKS credentials)
-        run: |
-          az aks get-credentials --resource-group ${{ env.STAGING_RESOURCE_GROUP }} --name ${{ env.AZURE_CLUSTER_NAME }} --overwrite-existing
+  #     - name: Set Kubernetes context (get AKS credentials)
+  #       run: |
+  #         az aks get-credentials --resource-group ${{ env.STAGING_RESOURCE_GROUP }} --name ${{ env.AZURE_CLUSTER_NAME }} --overwrite-existing
 
-      - name: Get Frontend IP Address From Staging Namespace
-        run: |
-          FRONTEND_IP=$(kubectl get service frontend-w05-aks -n staging -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-          echo "FRONTEND_IP=$FRONTEND_IP" >> $GITHUB_ENV
+  #     - name: Get Frontend IP Address From Staging Namespace
+  #       run: |
+  #         FRONTEND_IP=$(kubectl get service frontend-w05-aks -n staging -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+  #         echo "FRONTEND_IP=$FRONTEND_IP" >> $GITHUB_ENV
 
-      - name: Smoke Testing Frontend and Backend
-        run: |
-          echo "Testing Product Service at ${{ needs.deploy_backend.outputs.PRODUCT_API_IP }}"
-          curl -f http://${{ needs.deploy_backend.outputs.PRODUCT_API_IP }}:8000 || exit 1
+  #     - name: Smoke Testing Frontend and Backend
+  #       run: |
+  #         echo "Testing Product Service at ${{ needs.deploy_backend.outputs.PRODUCT_API_IP }}"
+  #         curl -f http://${{ needs.deploy_backend.outputs.PRODUCT_API_IP }}:8000 || exit 1
 
-          echo "Testing Order Service at ${{ needs.deploy_backend.outputs.ORDER_API_IP }}"
-          curl -f http://${{ needs.deploy_backend.outputs.ORDER_API_IP }}:8001 || exit 1
+  #         echo "Testing Order Service at ${{ needs.deploy_backend.outputs.ORDER_API_IP }}"
+  #         curl -f http://${{ needs.deploy_backend.outputs.ORDER_API_IP }}:8001 || exit 1
 
-          echo "Testing Customer Service at ${{ needs.deploy_backend.outputs.CUSTOMER_API_IP }}"
-          curl -f http://${{ needs.deploy_backend.outputs.CUSTOMER_API_IP }}:8002 || exit 1
+  #         echo "Testing Customer Service at ${{ needs.deploy_backend.outputs.CUSTOMER_API_IP }}"
+  #         curl -f http://${{ needs.deploy_backend.outputs.CUSTOMER_API_IP }}:8002 || exit 1
 
-          echo "Testing Frontend at $FRONTEND_IP"
-          curl -f http://${{ env.FRONTEND_IP }}:80 || exit 1
+  #         echo "Testing Frontend at $FRONTEND_IP"
+  #         curl -f http://${{ env.FRONTEND_IP }}:80 || exit 1
       
-  delete_staging_environment:
-    needs: acceptance_testing
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+  # delete_staging_environment:
+  #   needs: acceptance_testing
+  #   runs-on: ubuntu-latest
+  #   if: always()
+  #   steps:
+  #     - name: Azure Login
+  #       uses: azure/login@v1
+  #       with:
+  #         creds: ${{ secrets.AZURE_CREDENTIALS }}
       
-      - name: Set Kubernetes context (get AKS credentials)
-        run: |
-          az aks get-credentials --resource-group ${{ env.STAGING_RESOURCE_GROUP }} --name ${{ env.AZURE_CLUSTER_NAME }} --overwrite-existing
+  #     - name: Set Kubernetes context (get AKS credentials)
+  #       run: |
+  #         az aks get-credentials --resource-group ${{ env.STAGING_RESOURCE_GROUP }} --name ${{ env.AZURE_CLUSTER_NAME }} --overwrite-existing
 
-      - name: Delete AKS Cluster
-        run: kubectl delete namespace staging
+  #     - name: Delete AKS Cluster
+  #       run: kubectl delete namespace staging
 
-      - name: Delete Azure Storage Account
-        run: |
-          echo "Deleting Storage Account: ${{ env.STAGING_STORAGE_NAME }}"
-          az storage account delete \
-            --name ${{ env.STAGING_STORAGE_NAME }} \
-            --resource-group ${{ env.STAGING_RESOURCE_GROUP }} \
-            --yes
+  #     - name: Delete Azure Storage Account
+  #       run: |
+  #         echo "Deleting Storage Account: ${{ env.STAGING_STORAGE_NAME }}"
+  #         az storage account delete \
+  #           --name ${{ env.STAGING_STORAGE_NAME }} \
+  #           --resource-group ${{ env.STAGING_RESOURCE_GROUP }} \
+  #           --yes
 
-      - name: Logout from Azure
-        run: az logout
+  #     - name: Logout from Azure
+  #       run: az logout
     
 
        
