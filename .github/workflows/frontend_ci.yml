@@ -1,4 +1,4 @@
-# week10/.github/workflows/frontend_ci.yml.
+# week10/.github/workflows/frontend_ci.yml
 
 name: Frontend CI - Build & Push Image
 

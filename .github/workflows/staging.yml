@@ -9,7 +9,7 @@ on:
 
 env:
   AZURE_CLUSTER_NAME: week10-aks-cluster
-  STAGING_RESOURCE_GROUP: week10-rg-staging
+  RESOURCE_GROUP: week10-rg-staging
   STAGING_STORAGE_NAME: week10storagestaging
   AZURE_CONTAINER_REGISTRY: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
   LOCATION: eastus
@@ -43,17 +43,19 @@ jobs:
 
     - name: Set Kubernetes context (get AKS credentials)
       run: |
-          az aks get-credentials --resource-group ${{ env.STAGING_RESOURCE_GROUP }} --name ${{ env.AZURE_CLUSTER_NAME }} --overwrite-existing
+          az aks get-credentials --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.AZURE_CLUSTER_NAME }} --overwrite-existing
     
     - name: Create Staging Namespace
       run: |
-          kubectl create namespace staging || echo "Namespace 'staging' already exists"
+        kubectl delete namespace staging --ignore-not-found
+        kubectl wait --for=delete namespace/staging --timeout=120s || true
+        kubectl create namespace staging
     
     - name: Create Azure Storage Account
       run: |
         az storage account create \
           --name ${{ env.STAGING_STORAGE_NAME }} \
-          --resource-group ${{ env.STAGING_RESOURCE_GROUP }} \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
           --location ${{ env.LOCATION }} \
           --sku Standard_LRS
 
@@ -65,10 +67,10 @@ jobs:
       - create_staging_environment
     uses: ./.github/workflows/backend_cd.yml
     with:
-      aks_cluster_name: week10-aks-cluster
-      aks_resource_group: week10-rg-staging
-      aks_acr_name: danuthacr
-      aks_storage_name: week10storagestaging
+      aks_cluster_name: 'week10-aks-cluster'
+      aks_resource_group: 'week10-rg-staging'
+      aks_acr_name: 'danuthacr'
+      aks_storage_name: 'week10storagestaging'
       aks_namespace: 'staging'
     secrets:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
@@ -87,65 +89,6 @@ jobs:
       AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
       AZURE_CONTAINER_REGISTRY: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
   
-  # acceptance_testing:
-  #   needs: [deploy_frontend, deploy_backend]
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Azure Login
-  #       uses: azure/login@v1
-  #       with:
-  #         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-  #     - name: Set Kubernetes context (get AKS credentials)
-  #       run: |
-  #         az aks get-credentials --resource-group ${{ env.STAGING_RESOURCE_GROUP }} --name ${{ env.AZURE_CLUSTER_NAME }} --overwrite-existing
-
-  #     - name: Get Frontend IP Address From Staging Namespace
-  #       run: |
-  #         FRONTEND_IP=$(kubectl get service frontend-w05-aks -n staging -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-  #         echo "FRONTEND_IP=$FRONTEND_IP" >> $GITHUB_ENV
-
-  #     - name: Smoke Testing Frontend and Backend
-  #       run: |
-  #         echo "Testing Product Service at ${{ needs.deploy_backend.outputs.PRODUCT_API_IP }}"
-  #         curl -f http://${{ needs.deploy_backend.outputs.PRODUCT_API_IP }}:8000 || exit 1
-
-  #         echo "Testing Order Service at ${{ needs.deploy_backend.outputs.ORDER_API_IP }}"
-  #         curl -f http://${{ needs.deploy_backend.outputs.ORDER_API_IP }}:8001 || exit 1
-
-  #         echo "Testing Customer Service at ${{ needs.deploy_backend.outputs.CUSTOMER_API_IP }}"
-  #         curl -f http://${{ needs.deploy_backend.outputs.CUSTOMER_API_IP }}:8002 || exit 1
-
-  #         echo "Testing Frontend at $FRONTEND_IP"
-  #         curl -f http://${{ env.FRONTEND_IP }}:80 || exit 1
-      
-  # delete_staging_environment:
-  #   needs: acceptance_testing
-  #   runs-on: ubuntu-latest
-  #   if: always()
-  #   steps:
-  #     - name: Azure Login
-  #       uses: azure/login@v1
-  #       with:
-  #         creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-  #     - name: Set Kubernetes context (get AKS credentials)
-  #       run: |
-  #         az aks get-credentials --resource-group ${{ env.STAGING_RESOURCE_GROUP }} --name ${{ env.AZURE_CLUSTER_NAME }} --overwrite-existing
-
-  #     - name: Delete AKS Cluster
-  #       run: kubectl delete namespace staging
-
-  #     - name: Delete Azure Storage Account
-  #       run: |
-  #         echo "Deleting Storage Account: ${{ env.STAGING_STORAGE_NAME }}"
-  #         az storage account delete \
-  #           --name ${{ env.STAGING_STORAGE_NAME }} \
-  #           --resource-group ${{ env.STAGING_RESOURCE_GROUP }} \
-  #           --yes
-
-  #     - name: Logout from Azure
-  #       run: az logout
-    
 
        
