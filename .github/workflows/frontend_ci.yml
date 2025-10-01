@@ -1,0 +1,45 @@
+# week10/.github/workflows/frontend_ci.yml
+
+name: Frontend CI - Build & Push Image
+
+on:
+  workflow_dispatch:
+
+  workflow_call:
+    secrets:
+      AZURE_CONTAINER_REGISTRY:
+        required: true
+      AZURE_CREDENTIALS:
+        required: true
+
+env:
+  AZURE_CONTAINER_REGISTRY: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+
+jobs:
+  build_and_push_frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # Azure login using a Service Principal secret
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    # Login to Azure Container Registry (ACR)
+    - name: Login to Azure Container Registry
+      run: az acr login --name ${{ env.AZURE_CONTAINER_REGISTRY }}
+
+    # Build and Push Docker image for Frontend
+    - name: Build and Push Frontend Image
+      run: |
+        docker build -t ${{ env.AZURE_CONTAINER_REGISTRY }}/week10_frontend:latest ./frontend/
+        docker push ${{ env.AZURE_CONTAINER_REGISTRY }}/week10_frontend:latest
+
+    # Logout from Azure for security (runs even if image push fails)
+    - name: Logout from Azure
+      run: az logout
+      if: always()
