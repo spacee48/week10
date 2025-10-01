@@ -111,38 +111,43 @@ jobs:
           kubectl apply -f order-service.yaml --namespace=${{ inputs.aks_namespace }}
       
       - name: Wait for Backend LoadBalancer IPs
+        env:
+          NAMESPACE: staging                # set to the namespace you applied to
+          SERVICES: "product-service-w05-aks order-service-w05-aks customer-service-w05-aks"
+          TIMEOUT_SECS: "600"
+          SLEEP_SECS: "5"
         run: |
-          echo "Waiting for Product, Order LoadBalancer IPs to be assigned (up to 5 minutes)..."
-          CUSTOMER_IP=""
-          PRODUCT_IP=""
-          ORDER_IP=""
-          
-          for i in $(seq 1 60); do
-            echo "Attempt $i/60 to get IPs..."
-            PRODUCT_IP=$(kubectl get service product-service-w05-aks -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-            ORDER_IP=$(kubectl get service order-service-w05-aks -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-            CUSTOMER_IP=$(kubectl get service customer-service-w05-aks -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-            
-            if [[ -n "$PRODUCT_IP" && -n "$ORDER_IP" && -n "$CUSTOMER_IP" ]]; then
-              echo "All backend LoadBalancer IPs assigned!"
-              echo "Product Service IP: $PRODUCT_IP"
-              echo "Order Service IP: $ORDER_IP"
-              echo "Customer Service IP: $CUSTOMER_IP"
-              break
-            fi
-            sleep 5 # Wait 5 seconds before next attempt
+          set -u  # do NOT set -e so a transient kubectl error doesn't abort the loop
+
+          echo "Waiting for LoadBalancer IPs in namespace ${NAMESPACE}"
+          deadline=$(( $(date +%s) + TIMEOUT_SECS ))
+
+          get_ip () {
+            local name="$1"
+            kubectl -n "${NAMESPACE}" get svc "${name}" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true
+          }
+
+          for svc in ${SERVICES}; do
+            echo "→ ${svc}"
+            while true; do
+              ip="$(get_ip "${svc}")"
+              if [ -n "${ip}" ]; then
+                echo "✓ ${svc} => ${ip}"
+                # export to env for later steps
+                var=$(echo "${svc}" | tr '-' '_' | tr '[:lower:]' '[:upper:]')_IP
+                echo "${var}=${ip}" >> "$GITHUB_ENV"
+                break
+              fi
+              if [ "$(date +%s)" -ge "${deadline}" ]; then
+                echo "✗ Timed out waiting for ${svc}"
+                kubectl -n "${NAMESPACE}" get svc -o wide || true
+                exit 1
+              fi
+              sleep "${SLEEP_SECS}"
+            done
           done
-          
-          if [[ -z "$PRODUCT_IP" || -z "$ORDER_IP" || -z "$CUSTOMER_IP" ]]; then
-            echo "Error: One or more LoadBalancer IPs not assigned after timeout."
-            exit 1 # Fail the job if IPs are not obtained
-          fi
-          
-          # These are environment variables for subsequent steps in the *same job*
-          # And used to set the job outputs
-          echo "PRODUCT_IP=$PRODUCT_IP" >> $GITHUB_ENV
-          echo "ORDER_IP=$ORDER_IP" >> $GITHUB_ENV
-          echo "CUSTOMER_IP=$CUSTOMER_IP" >> $GITHUB_ENV
+
+          echo "All backend service IPs discovered."
 
       - name: Capture Product Service IP for Workflow Output
         id: get_product_ip
